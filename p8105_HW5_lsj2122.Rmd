@@ -7,9 +7,81 @@ output: github_document
 
 ```{r, include=FALSE}
 library(tidyverse)
+library(rvest)
+library(readr)
+
+options(readr.show_col_types = FALSE)
+
+knitr::opts_chunk$set(
+  fig.width = 8,
+  fig.height = 6,
+  out.width = "90%"
+)
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = ("viridis"))
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
 ```
 
 # Problem 1
 
+
+
+# Problem 2
+
+## Load the data
+
+```{r, col_types = FALSE}
+study_df = 
+  tibble(
+    files = list.files("data/"),
+    path = str_c("data/", files)) |> 
+  mutate(data = map(path, read_csv)) |> 
+  unnest(c(data))
+
+study_df
+```
+
+## Tidy the data
+```{r}
+tidy_study_df = 
+  study_df |> 
+  separate(files, into = c("control_arm", "subject_ID", "csv")) |> 
+  mutate(
+    control_arm = ifelse(control_arm == "con", "control", control_arm),
+    control_arm = ifelse(control_arm == "exp", "experimental", control_arm)
+  ) |> 
+  pivot_longer(
+    cols = starts_with("week"), 
+    names_to = "week", 
+    names_prefix = "week_",
+    values_to = "observation") |> 
+  select(subject_ID, control_arm, week, observation) |> 
+  mutate(week = as.numeric(week))
+
+tidy_study_df
+```
+
+
+## Spaghetti Plot of Observations on Each Subject Over Time
+
+```{r}
+study_plot = 
+  tidy_study_df |> 
+  ggplot(aes(x = week, y = observation, color = subject_ID)) +
+  geom_point() +
+  geom_line() +
+  facet_grid(.~control_arm) + 
+  labs(
+    x = "Week",
+    y = "Observation",
+    title = "Observations for Each Subject by Week"
+  )
+
+study_plot
+```
 
 
