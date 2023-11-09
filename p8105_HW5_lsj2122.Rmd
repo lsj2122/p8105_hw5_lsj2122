@@ -84,4 +84,5 @@ study_plot =
 study_plot
 ```
 
+The control arm has observations that are consistently between the range of approximately -2.17 and 4.26 for each subject in all eight weeks, with the lowest observation value of -2.17 in week six for subject 5 and the highest observation value of 4.26 in week five for subject 10. 
 
