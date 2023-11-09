@@ -1,0 +1,15 @@
+---
+title: "P8105 Homework 4"
+author: "Laylah Jones"
+date: 2023-11-09
+output: github_document
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+```
+
+# Problem 1
+
+
+
