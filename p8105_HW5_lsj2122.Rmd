@@ -112,22 +112,13 @@ sim_norm = function(mu, n = 30, sigma = 5) {
     select(p.value, estimate) |> 
     rename(mu_hat = estimate)
 }
-
-output = vector("list", length = 50)
-
-for (i in 1:50) {
-  output[[i]] = sim_norm(0)
-  
-}
-
-sim_results_df = bind_rows(output)
 ```
 
 ```{r}
 sim_results_df = 
   expand_grid(
     mu = c(0,1,2,3,4,5,6),
-    iter = 1:50
+    iter = 1:500
   ) |> 
   mutate(
     estimate_df = map(mu, sim_norm)
@@ -147,16 +138,23 @@ sim_results_plot =
       p.value < 0.05 ~ TRUE
     )) |> 
   summarize(count = sum(reject)) |> 
-  mutate(prop = count / 50)
+  mutate(prop = count / 500)
 
 sim_results_plot |> 
   ggplot(aes(x = mu, y = prop, fill = mu)) +
-  geom_col() +
+  geom_point() +
+  geom_line() +
   labs(
     title = "Proportion of Times the Null Hypothesis was Rejected for Each Mu",
     x = "True Value of Mu",
     y = "Proportion of Times Rejected"
   )
+```
+
+## Plot Comparing the Average Estimate and the True Value of Mu
+
+```{r}
+
 ```
 
 
