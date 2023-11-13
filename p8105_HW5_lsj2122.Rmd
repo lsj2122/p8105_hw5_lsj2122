@@ -92,64 +92,75 @@ From this plot, we can observe that the control arm had lower values than the ex
 # Problem 3
 
 ## Setting the Design Elements and Generating 5000 Datasets
-
-```{r, message = FALSE}
+```{r}
 n = 30
 sigma = 5
 mu = 0
+mus = c(0, 1, 2, 3, 4, 5, 6)
 alpha = 0.05
 set.seed(12345)
 
-sim_norm = function(mu, n = 30, sigma = 5) {
+
+sim_mean_sd = function(n, mu, sigma) {
   
-  sim_data = tibble(
-    x = rnorm(mean = mu, n = n, sd = sigma),
+  sim_df = tibble(
+    x = rnorm(n, mean = mu, sd = sigma),
   )
   
-  sim_data |>  
-    t.test(mean = 0, alternative = "two.sided", conf.level = 0.95) |> 
-    broom::tidy() |> 
-    select(p.value, estimate) |> 
-    rename(mu_hat = estimate)
+  sim_df |> 
+    summarize(
+      mu_hat = mean(x),
+      sigma_hat = sd(x)
+    )
 }
+
+t_test = function(n, mu, sigma) {
+  sample = rnorm(n, mean = mu, sd = sigma)
+  test_result = t.test(sample, mu = 0)
+  broom::tidy(test_result)
+}
+
+results = 
+  tibble(mu = numeric(), mu_hat = numeric(), p_value = numeric(), reject = logical())
 ```
 
 ```{r}
-sim_results_df = 
-  expand_grid(
-    mu = c(0,1,2,3,4,5,6),
-    iter = 1:500
-  ) |> 
-  mutate(
-    estimate_df = map(mu, sim_norm)
-  ) |> 
-  unnest(estimate_df)
+for (mu in mus) {
+  for (i in 1:50) {
+    sim_results = sim_mean_sd(n, mu, sigma)
+    t_test_results = t_test(n, mu, sigma)
+    results = results |>  
+      add_row(mu = mu, 
+              mu_hat = sim_results$mu_hat, 
+              p_value = t_test_results$p.value, 
+              reject = t_test_results$p.value < alpha)
+  }
+}
+
+power_results = results |>  
+  group_by(mu) |>  
+  summarize(power = mean(reject), 
+            avg_mu_hat = mean(mu_hat), 
+            avg_mu_hat_rejected = mean(mu_hat[reject]))
 ```
 
 ## Plot Showing the Proportion of Times the Null was Rejected
 
 ```{r}
-sim_results_plot = 
-  sim_results_df |> 
-  group_by(mu) |> 
-  mutate(
-    reject = case_when(
-      p.value > 0.05 ~ FALSE,
-      p.value < 0.05 ~ TRUE
-    )) |> 
-  summarize(count = sum(reject)) |> 
-  mutate(prop = count / 500)
-
-sim_results_plot |> 
-  ggplot(aes(x = mu, y = prop, fill = mu)) +
-  geom_point() +
+power_results |>  
+  ggplot(aes(
+    x = mu, 
+    y = power)) +
   geom_line() +
+  geom_point() +
   labs(
-    title = "Proportion of Times the Null Hypothesis was Rejected for Each Mu",
-    x = "True Value of Mu",
-    y = "Proportion of Times Rejected"
-  )
+    title = "Proportion of Times the Null Hypothesis was Rejected for Each Mu", 
+    x = "True Value of Mu", 
+    y = "Power")
 ```
+
+From the plot, we can see that as the value of mu increases the proportion of times the null hypothesis was rejected also increased. When mu reaches a value of 5 and 6, the power is 1. This could be interpreted as a larger effect size leading to higher power, meaning a higher rejection rate. 
+
 
 ## Plot Comparing the Average Estimate and the True Value of Mu
 
