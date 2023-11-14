@@ -1,5 +1,5 @@
 ---
-title: "P8105 Homework 4"
+title: "P8105 Homework 5"
 author: "Laylah Jones"
 date: 2023-11-15
 output: github_document
@@ -30,7 +30,80 @@ scale_fill_discrete = scale_fill_viridis_d
 
 # Problem 1
 
+## Load and clean the dataset
 
+```{r}
+homicide_df = 
+  read_csv("data/homicide-data.csv", na = c("", "NA", "Unknown"))
+```
+
+```{r}
+homicide_df = 
+  read_csv("data/homicide-data.csv", na = c("", "NA", "Unknown")) %>%
+  mutate(
+    city_state = str_c(city, state, sep = ", "),
+    resolution = case_when(
+      disposition == "Closed without arrest" ~ "unsolved",
+      disposition == "Open/No arrest"        ~ "unsolved",
+      disposition == "Closed by arrest"      ~ "solved"
+    )
+  ) %>% 
+  filter(city_state != "Philadelphia, PA")
+```
+
+The raw dataset has `r nrow(homicide_df)` homicides between 2010 and 2016 and `r ncol(homicide_df)` variables that include `r colnames(homicide_df)`
+
+```{r}
+city_homicide_df = 
+  homicide_df |> 
+  select(city_state, disposition, resolution) |>  
+  group_by(city_state) |> 
+  summarize(
+    hom_total = n(),
+    hom_unsolved = sum(resolution == "unsolved"))
+```
+
+```{r}
+atl_test = 
+  prop.test(
+    x = filter(city_homicide_df, city_state == "Atlanta, GA") %>% pull(hom_unsolved),
+    n = filter(city_homicide_df, city_state == "Atlanta, GA") %>% pull(hom_total)) 
+
+broom::tidy(atl_test) %>% 
+  knitr::kable(digits = 3)
+```
+
+I am focusing only on Atlanta, GA and use the `prop.test` and `broom::tidy` function to get an estimate and CI of the number of unsolved homicides. 
+
+## Running Prop.Test
+
+```{r}
+results_df = 
+  city_homicide_df |>  
+  mutate(
+    prop_tests = map2(hom_unsolved, hom_total, \(x, y) prop.test(x = x, n = y)),
+    tidy_tests = map(prop_tests, broom::tidy)) |>  
+  select(-prop_tests) |>  
+  unnest(tidy_tests) |>  
+  select(city_state, estimate, conf.low, conf.high) |>  
+  mutate(city_state = fct_reorder(city_state, estimate))
+```
+
+## Plot of Estimates and CIs for Each City
+```{r}
+results_df |> 
+  mutate(city_state = fct_reorder(city_state, estimate)) |>  
+  ggplot(aes(
+    x = city_state, 
+    y = estimate)) + 
+  geom_point() + 
+  geom_errorbar(aes(
+    ymin = conf.low, 
+    ymax = conf.high)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+This plot shows the rate in which homicides are solved by city. We can note that Chicago, IL has the highest, from which we can infer that it is the location of majority of the homicides.
 
 # Problem 2
 
@@ -99,6 +172,7 @@ mu = 0
 mus = c(0, 1, 2, 3, 4, 5, 6)
 alpha = 0.05
 set.seed(12345)
+datasets_number = 50
 
 
 sim_mean_sd = function(n, mu, sigma) {
