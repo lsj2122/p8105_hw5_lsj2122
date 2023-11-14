@@ -34,18 +34,18 @@ scale_fill_discrete = scale_fill_viridis_d
 
 ```{r}
 homicide_df = 
-  read_csv("data/homicide-data.csv", na = c("", "NA", "Unknown"))
+  read_csv("homicide_data/homicide-data.csv", na = c("", "NA", "Unknown"))
 ```
 
 ```{r}
 homicide_df = 
-  read_csv("data/homicide-data.csv", na = c("", "NA", "Unknown")) %>%
+  read_csv("homicide_data/homicide-data.csv", na = c("", "NA", "Unknown")) %>%
   mutate(
     city_state = str_c(city, state, sep = ", "),
     resolution = case_when(
       disposition == "Closed without arrest" ~ "unsolved",
-      disposition == "Open/No arrest"        ~ "unsolved",
-      disposition == "Closed by arrest"      ~ "solved"
+      disposition == "Open/No arrest" ~ "unsolved",
+      disposition == "Closed by arrest" ~ "solved"
     )
   ) %>% 
   filter(city_state != "Philadelphia, PA")
@@ -159,69 +159,64 @@ study_plot =
 study_plot
 ```
 
-From this plot, we can observe that the control arm had lower values than the experimental arm. The control arm has observations that are consistently between the range of approximately -2.17 and 4.26 for each subject in all eight weeks, with the lowest observation value of -2.17 in week six for subject 5 and the highest observation value of 4.26 in week five for subject 10. The experimental arm has observations that are consistently between the range of approximately -0.84 and 7.66 for each subject in all eight weeks, with the lowest observation value being in week one for subject 2 and the highest observation value being in week seven for subject 6.
+The following spaghetti plot shows observations on each subject over 8 weeks. From this plot, we can observe that the control arm had lower values than the experimental arm. The control arm has observations that are consistently between the range of approximately -2.17 and 4.26 for each subject in all eight weeks, with the lowest observation value of -2.17 in week six for subject 5 and the highest observation value of 4.26 in week five for subject 10. The experimental arm has observations that are consistently between the range of approximately -0.84 and 7.66 for each subject in all eight weeks, with the lowest observation value being in week one for subject 2 and the highest observation value being in week seven for subject 6.
 
 
 # Problem 3
 
 ## Setting the Design Elements and Generating 5000 Datasets
-```{r}
+
+```{r, design_elements}
 n = 30
 sigma = 5
 mu = 0
 mus = c(0, 1, 2, 3, 4, 5, 6)
 alpha = 0.05
 set.seed(12345)
-datasets_number = 50
+datasets_number = 5000
+```
 
-
+```{r, function}
 sim_mean_sd = function(n, mu, sigma) {
   
-  sim_df = tibble(
-    x = rnorm(n, mean = mu, sd = sigma),
-  )
-  
-  sim_df |> 
-    summarize(
-      mu_hat = mean(x),
-      sigma_hat = sd(x)
-    )
+   rnorm(n, mu, sigma) |> 
+      t.test() |> 
+      broom::tidy() |> 
+      select(estimate, p.value)
 }
 
-t_test = function(n, mu, sigma) {
-  sample = rnorm(n, mean = mu, sd = sigma)
-  test_result = t.test(sample, mu = 0)
-  broom::tidy(test_result)
-}
+sim_results =
+  expand_grid(
+    mu = 0,
+    iter = 1:5000
+  ) |> 
+  mutate(test_result = map(mu, sim_mean_sd, n = 30, sigma = 5)) |> 
+  unnest(test_result)
 
 results = 
   tibble(mu = numeric(), mu_hat = numeric(), p_value = numeric(), reject = logical())
+
+sim_results |>
+  head() |> 
+  knitr::kable(digits = 3)
 ```
 
-```{r}
-for (mu in mus) {
-  for (i in 1:50) {
-    sim_results = sim_mean_sd(n, mu, sigma)
-    t_test_results = t_test(n, mu, sigma)
-    results = results |>  
-      add_row(mu = mu, 
-              mu_hat = sim_results$mu_hat, 
-              p_value = t_test_results$p.value, 
-              reject = t_test_results$p.value < alpha)
-  }
-}
-
-power_results = results |>  
-  group_by(mu) |>  
-  summarize(power = mean(reject), 
-            avg_mu_hat = mean(mu_hat), 
-            avg_mu_hat_rejected = mean(mu_hat[reject]))
+```{r, change_mu}
+sim_results_2 = 
+  expand_grid(
+    mu = c(1:6),
+    iter = 1:5000
+  ) |> 
+  mutate(test_result = map(mu, sim_mean_sd, n = 30, sigma = 5)) |> 
+  unnest(test_result)
 ```
 
 ## Plot Showing the Proportion of Times the Null was Rejected
 
-```{r}
-power_results |>  
+```{r, plot_1}
+sim_results_2 |>
+  group_by(mu) |> 
+  summarise(power = sum(p.value < 0.05) / n()) |>
   ggplot(aes(
     x = mu, 
     y = power)) +
@@ -238,24 +233,30 @@ The plot shows a positive association between effect size and power. From the pl
 
 ## Plot Comparing the Average Estimate and the True Value of Mu
 
-```{r}
-power_results |>  
-  ggplot(aes(x = mu)) +
-  geom_point(aes(y = avg_mu_hat, color = "Average Estimate"), shape = 1) +  
-  geom_line(aes(y = avg_mu_hat, color = "Average Estimate")) +
-  geom_point(aes(y = avg_mu_hat_rejected, color = "Conditional Average Estimate"), shape = 2) +
-  geom_line(aes(y = avg_mu_hat_rejected, color = "Conditional Average Estimate"), linetype = "dashed") +
+```{r, plot_2}
+sim_results_2 |> 
+  group_by(mu) |> 
+  summarise(mean_estimate = mean(estimate)) |> 
+  ggplot(aes(
+    x = mu, 
+    y = mean_estimate)) +
+  geom_line(aes(
+    color = "Average Estimate", 
+    lty = "Average Estimate")) +
+  geom_line(data = 
+              sim_results_2 |>
+              filter(p.value < 0.05) |> 
+              group_by(mu) |> 
+              summarise(mean_estimate = mean(estimate)),
+            aes(color = "Rejected Average Estimate", lty = "Rejected Average Estimate")) +
+  scale_color_manual(name = "", values = c("Average Estimate" = "blue", "Rejected Average Estimate" = "red")) +
+  scale_linetype_manual(name = "", values = c("Average Estimate" = 2, "Rejected Average Estimate" = 1)) +
   labs(
     title = "Average Estimated Mean vs. True Mean",
     x = "True Mean (mu)",
     y = "Average Estimated Mean",
-    color = "mu_hat"
-  ) +
-  scale_color_manual(
-    values = c("Average Estimate" = "red", "Conditional Average Estimate" = "blue")
-  ) +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+    color = "mu_hat") +
+  theme_minimal()
 ```
 
 The plot shows that the sample average of the mean (mu) in the tests where the null hypothesis was rejected is closely approximated to the true mean (mu). This is demonstrated with the overlay of lines for average estimate and conditional average estimate. This implies that when the null hypothesis is rejected, the t-test serves as an unbiased estimator of the population mean, aligning with the expected characteristics of the t-test within the specified simulation conditions. 
